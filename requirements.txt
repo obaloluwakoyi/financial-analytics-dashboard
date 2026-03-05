@@ -11,4 +11,8 @@ pdfplumber==0.11.0
 fpdf==1.7.2
 
 # Visualization & Reporting
+
 matplotlib==3.8.3
+plotly
+
+reportlab
