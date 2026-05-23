@@ -1,13 +1,12 @@
 # make_pdf.py
 from fpdf import FPDF
 import matplotlib
-matplotlib.use("Agg")  # REQUIRED for Docker / headless
+matplotlib.use("Agg")  # REQUIRED for headless / Streamlit
 import matplotlib.pyplot as plt
 import tempfile
 import shutil
 import os
 import pandas as pd
-
 
 REQUIRED_COLUMNS = {"Invoice", "Client", "Amount", "Status"}
 
@@ -57,7 +56,7 @@ def _add_table(pdf: FPDF, df: pd.DataFrame):
     pdf.set_font("Arial", size=8)
 
     for _, row in df.iterrows():
-        if pdf.get_y() > 260:  # pagination guard
+        if pdf.get_y() > 260:
             pdf.add_page()
             pdf.set_font("Arial", "B", 9)
             for h, w in headers:
@@ -101,7 +100,12 @@ def create_report(df: pd.DataFrame) -> bytes:
         pdf.add_page()
         _add_table(pdf, df)
 
-        return pdf.output(dest="S").encode("latin-1", "replace")
+        # FIX 7: fpdf 1.7.2 returns a str from output(dest='S'), not bytes.
+        # Encode to latin-1 to get proper PDF bytes for Streamlit's download_button.
+        raw = pdf.output(dest="S")
+        if isinstance(raw, str):
+            return raw.encode("latin-1")
+        return bytes(raw)  # fpdf2 returns bytearray
 
     finally:
         shutil.rmtree(tmpdir, ignore_errors=True)

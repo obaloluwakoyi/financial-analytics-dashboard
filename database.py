@@ -5,8 +5,12 @@ from sqlalchemy import (
 )
 from sqlalchemy.engine import Engine
 import pandas as pd
+import os
 
-DB_URL = "sqlite:///enterprise.db"
+# FIX 5: Store DB in user home dir so it survives restarts and avoids permission issues
+DB_DIR = os.path.expanduser("~/.financial_dashboard")
+os.makedirs(DB_DIR, exist_ok=True)
+DB_URL = f"sqlite:///{DB_DIR}/enterprise.db"
 
 metadata = MetaData()
 
@@ -28,7 +32,13 @@ class DatabaseError(Exception):
 
 
 def get_engine(db_url: str = DB_URL) -> Engine:
-    return create_engine(db_url, future=True)
+    # FIX 6: Add check_same_thread=False for SQLite + pool_pre_ping for health checks
+    return create_engine(
+        db_url,
+        future=True,
+        connect_args={"check_same_thread": False},
+        pool_pre_ping=True,
+    )
 
 
 def init_db(engine: Engine):
@@ -41,9 +51,12 @@ def save_invoices(df: pd.DataFrame, engine: Engine):
 
     required = set(c.name for c in invoices.columns)
     if not required.issubset(df.columns):
-        raise DatabaseError("DataFrame schema mismatch")
+        raise DatabaseError(
+            f"DataFrame schema mismatch. Got: {list(df.columns)}, "
+            f"expected: {sorted(required)}"
+        )
 
-    records = df.to_dict(orient="records")
+    records = df[list(required)].to_dict(orient="records")
 
     stmt = text("""
         INSERT OR IGNORE INTO invoices
